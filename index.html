@@ -347,7 +347,7 @@
   const MIN_WITHDRAW = 1000;    // الحد الأدنى للسحب
 
   // رابط ملف المانيفست (يجب أن يكون على نفس موقعك وبـ HTTPS)
-  const MANIFEST_URL = "https://loe26.github.io/IOE_Earning26/tonconnect-manifest.json";
+  const MANIFEST_URL = location.origin + location.pathname.replace(/[^/]*$/, "") + "tonconnect-manifest.json";
   // رابط البوت بعد إنشائه من BotFather (سنضبطه في الخطوة التالية)
   const INVITE_BASE = "https://t.me/YOUR_BOT_NAME/app?startapp=";
   const TWA_RETURN_URL = "https://t.me/YOUR_BOT_NAME/app";
