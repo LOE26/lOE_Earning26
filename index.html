@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LOE Miner</title>
+<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --ink: #101A3A;
+    --ink-2: #18254F;
+    --gold: #FFB627;
+    --gold-light: #FFD97A;
+    --gold-deep: #C9820A;
+    --mist: #8FA3D6;
+    --paper: #F5F7FF;
+    --line: rgba(143, 163, 214, 0.22);
+    box-sizing: border-box;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: system-ui, "Tajawal", sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* ---------- الرصيد (ثابت في كل التبويبات) ---------- */
+  .balance { text-align: center; padding: 8px 20px 4px; }
+  .balance-label { color: var(--mist); font-size: 1rem; margin: 0 0 2px; }
+  .balance-row {
+    direction: ltr;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 10px;
+    font-family: "Reem Kufi", "Tajawal", sans-serif;
+  }
+  .balance-num { font-size: clamp(2.8rem, 13vw, 4rem); font-weight: 700; line-height: 1; }
+  .balance-unit { font-size: 1.4rem; font-weight: 500; color: var(--gold); }
+
+  /* ---------- الصفحات ---------- */
+  .views {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 20px 20px;
+  }
+  .view { width: 100%; max-width: 420px; flex: 1; display: flex; flex-direction: column; }
+  .view[hidden] { display: none; }
+  .view.home { align-items: center; justify-content: center; gap: 20px; }
+  .view h2 { font-family: "Reem Kufi", "Tajawal", sans-serif; font-size: 1.5rem; margin: 8px 0 4px; }
+  .hint { color: var(--mist); margin: 0 0 12px; line-height: 1.7; }
+
+  /* ---------- العملة ---------- */
+  .stage { position: relative; width: min(74vw, 300px); aspect-ratio: 1; }
+  .ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 8; }
+  .ring .track { stroke: var(--line); }
+  .ring .fill { stroke: var(--gold); stroke-linecap: round; transition: stroke-dashoffset 0.25s linear; }
+
+  .coin {
+    position: absolute;
+    inset: 9%;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--ink);
+    font-family: "Reem Kufi", "Tajawal", sans-serif;
+    background: radial-gradient(circle at 35% 30%, var(--gold-light), var(--gold) 55%, var(--gold-deep));
+    box-shadow: inset 0 0 0 6px rgba(16, 26, 58, 0.16), inset 0 0 0 7px rgba(255, 255, 255, 0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: transform 0.08s ease-out, filter 0.2s;
+  }
+  .coin:active:not(:disabled) { transform: scale(0.96); }
+  .coin:disabled { cursor: default; filter: saturate(0.55) brightness(0.8); }
+  .coin-name { font-size: clamp(2.2rem, 11vw, 3.2rem); font-weight: 700; letter-spacing: 2px; line-height: 1; }
+  .coin-status { font-family: system-ui, "Tajawal", sans-serif; font-size: 1.05rem; font-weight: 700; direction: ltr; }
+
+  .gain {
+    position: absolute;
+    left: 50%;
+    top: 36%;
+    translate: -50% 0;
+    font-family: "Reem Kufi", sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--paper);
+    direction: ltr;
+    pointer-events: none;
+    animation: rise 0.9s ease-out forwards;
+  }
+  @keyframes rise {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-90px); }
+  }
+  .note { color: var(--mist); font-size: 0.95rem; text-align: center; margin: 0; }
+
+  /* ---------- أزرار ---------- */
+  .btn {
+    background: var(--gold);
+    color: var(--ink);
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 20px;
+    font-family: system-ui, "Tajawal", sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn:disabled { background: var(--line); color: var(--mist); cursor: default; }
+  .btn.wide { width: 100%; padding: 14px 20px; font-size: 1.1rem; }
+
+  /* ---------- المهام ---------- */
+  .list { list-style: none; margin: 0; padding: 0; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row-text { flex: 1; min-width: 0; }
+  .row-title { font-weight: 700; margin: 0 0 2px; }
+  .row-reward { color: var(--gold); font-family: "Reem Kufi", sans-serif; direction: ltr; text-align: right; margin: 0; }
+  .done { color: var(--mist); font-weight: 700; }
+
+  /* ---------- إضافة (دعوة الأصدقاء) ---------- */
+  .link-box {
+    direction: ltr;
+    width: 100%;
+    padding: 12px 14px;
+    margin: 4px 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--ink-2);
+    color: var(--paper);
+    font-size: 0.95rem;
+    user-select: text;
+  }
+
+  /* ---------- السحب ---------- */
+  .bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 8px 0 10px; }
+  .bar-fill { height: 100%; width: 0; background: var(--gold); border-radius: 999px; transition: width 0.3s; }
+  .withdraw-info { color: var(--mist); margin: 0 0 18px; direction: rtl; }
+  .withdraw-info bdi { color: var(--paper); font-weight: 700; }
+
+  /* ---------- شريط التبويبات ---------- */
+  .tabbar {
+    display: flex;
+    background: var(--ink-2);
+    border-top: 1px solid var(--line);
+    padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+  .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: 0;
+    color: var(--mist);
+    font-family: system-ui, "Tajawal", sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 6px 0;
+    cursor: pointer;
+  }
+  .tab svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tab.active { color: var(--gold); font-weight: 700; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+    translate: -50% 0;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+
+  .coin:focus-visible, .btn:focus-visible, .tab:focus-visible { outline: 3px solid var(--paper); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gain { animation: none; opacity: 0; }
+    .ring .fill, .coin, .bar-fill, .toast { transition: none; }
+  }
+
+  .topbar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 16px 4px; }
+  .profile { display:flex; align-items:center; gap:9px; min-width:0; }
+  .avatar { width:36px; height:36px; border-radius:50%; background:var(--ink-2); border:1px solid var(--gold); display:grid; place-items:center; color:var(--gold); font-weight:800; flex-shrink:0; }
+  .profile-meta { min-width:0; }
+  .profile-label { color:var(--mist); font-size:.75rem; margin:0 0 2px; }
+  .profile-name { font-size:.95rem; font-weight:700; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:45vw; }
+  .language-select { background:var(--ink-2); color:var(--paper); border:1px solid var(--line); border-radius:10px; padding:8px 10px; font:inherit; }
+  .wallet-gate { position:fixed; inset:0; z-index:1000; background:var(--ink); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .wallet-card { width:100%; max-width:390px; text-align:center; border:1px solid var(--line); background:var(--ink-2); border-radius:22px; padding:28px 22px; box-shadow:0 20px 60px #0004; }
+  .wallet-logo { width:76px; height:76px; border-radius:50%; display:grid; place-items:center; margin:0 auto 16px; background:radial-gradient(circle at 35% 30%,var(--gold-light),var(--gold) 55%,var(--gold-deep)); color:var(--ink); font-size:1.5rem; font-weight:900; }
+  .wallet-card h1 { font-size:1.5rem; margin:0 0 10px; }
+  .wallet-card p { color:var(--mist); line-height:1.65; margin:0 0 20px; }
+  .wallet-status { margin-top:14px!important; font-size:.9rem; }
+  [hidden] { display:none !important; }
+
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="profile">
+    <div class="avatar" id="profileAvatar">U</div>
+    <div class="profile-meta">
+      <p class="profile-label" data-i18n="account">Account</p>
+      <p class="profile-name" id="profileName">Guest</p>
+    </div>
+  </div>
+  <select class="language-select" id="languageSelect" aria-label="Language">
+    <option value="en">English</option>
+    <option value="ar">العربية</option>
+  </select>
+</header>
+
+<section class="wallet-gate" id="walletGate">
+  <div class="wallet-card">
+    <div class="wallet-logo">LOE</div>
+    <h1 data-i18n="welcome">Welcome to LOE</h1>
+    <p data-i18n="connectPrompt">Connect your TON wallet to continue and start mining.</p>
+    <button class="btn wide" id="connectWalletBtn" type="button" data-i18n="connectTon">Connect TON Wallet</button>
+    <p class="wallet-status" id="walletStatus" data-i18n="walletRequired">A TON wallet connection is required before you begin.</p>
+  </div>
+</section>
+
+<header class="balance">
+  <p class="balance-label" data-i18n="yourBalance">Your balance</p>
+  <div class="balance-row">
+    <span class="balance-num" id="balance">0</span>
+    <span class="balance-unit">LOE</span>
+  </div>
+</header>
+
+<div class="views">
+
+  <!-- الرئيسية -->
+  <section class="view home" data-view="home">
+    <div class="stage" id="stage">
+      <svg class="ring" viewBox="0 0 240 240" aria-hidden="true">
+        <circle class="track" cx="120" cy="120" r="112"></circle>
+        <circle class="fill" id="ring" cx="120" cy="120" r="112"></circle>
+      </svg>
+      <button class="coin" id="coin" type="button" aria-label="تعدين LOE">
+        <span class="coin-name">LOE</span>
+        <span class="coin-status" id="status">Tap to mine</span>
+      </button>
+    </div>
+    <p class="note" id="note"></p>
+  </section>
+
+  <!-- المهام -->
+  <section class="view" data-view="tasks" hidden>
+    <h2 data-i18n="tasks">Tasks</h2>
+    <p class="hint" data-i18n="tasksHint">Complete tasks to earn extra LOE.</p>
+    <ul class="list" id="taskList"></ul>
+  </section>
+
+  <!-- إضافة -->
+  <section class="view" data-view="add" hidden>
+    <h2 data-i18n="inviteFriends">Invite Friends</h2>
+    <p class="hint" id="inviteHint"></p>
+    <input class="link-box" id="inviteLink" type="text" readonly>
+    <button class="btn wide" id="copyBtn" type="button" data-i18n="copyInvite">Copy invite link</button>
+  </section>
+
+  <!-- السحب -->
+  <section class="view" data-view="withdraw" hidden>
+    <h2 data-i18n="withdraw">Withdraw</h2>
+    <p class="hint" id="withdrawHint"></p>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="bar"><div class="bar-fill" id="barFill"></div></div>
+    <p class="withdraw-info" id="withdrawInfo"></p>
+    <button class="btn wide" id="withdrawBtn" type="button" disabled data-i18n="requestWithdraw">Request withdrawal</button>
+  </section>
+
+</div>
+
+<nav class="tabbar" aria-label="Navigation">
+  <button class="tab active" type="button" data-view="home" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>
+    <span data-i18n="home">Home</span>
+  </button>
+  <button class="tab" type="button" data-view="tasks">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17"/></svg>
+    <span data-i18n="tasks">Tasks</span>
+  </button>
+  <button class="tab" type="button" data-view="add">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M19 8v6M16 11h6"/></svg>
+    <span data-i18n="invite">Invite</span>
+  </button>
+  <button class="tab" type="button" data-view="withdraw">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></svg>
+    <span data-i18n="withdraw">Withdraw</span>
+  </button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+
+  // Language defaults to English; users can switch to Arabic at any time.
+  const translations = {
+    en: {
+      account:"Account", welcome:"Welcome to LOE", connectPrompt:"Connect your TON wallet to continue and start mining.",
+      connectTon:"Connect TON Wallet", walletRequired:"A TON wallet connection is required before you begin.",
+      connected:"TON wallet connected", connectError:"Could not connect. Please try again.", yourBalance:"Your balance",
+      tapMine:"Tap to mine", wait:"Next mining in", every:"Every", earn:"you earn", tasks:"Tasks",
+      tasksHint:"Complete tasks to earn extra LOE.", inviteFriends:"Invite Friends", copyInvite:"Copy invite link",
+      withdraw:"Withdraw", requestWithdraw:"Request withdrawal", home:"Home", invite:"Invite",
+      joinChannel:"Join the LOE channel", followX:"Follow us on X", subscribeYoutube:"Subscribe to YouTube",
+      start:"Start", claim:"Claim", done:"Done", inviteHint:"Earn", perFriend:"LOE for every friend who joins using your link.",
+      copied:"Invite link copied", minimum:"Minimum withdrawal:", withdrawDisabled:"Withdrawal requests will be enabled in a later update.",
+      pressMine:"Tap to mine", taskReward:"LOE", accountGuest:"Guest"
+    },
+    ar: {
+      account:"الحساب", welcome:"مرحبًا بك في LOE", connectPrompt:"اربط محفظة TON للمتابعة وبدء التعدين.",
+      connectTon:"ربط محفظة TON", walletRequired:"يجب ربط محفظة TON قبل البدء.",
+      connected:"تم ربط محفظة TON", connectError:"تعذر الربط. حاول مرة أخرى.", yourBalance:"رصيدك",
+      tapMine:"اضغط للتعدين", wait:"التعدين التالي خلال", every:"كل", earn:"تحصل على", tasks:"المهام",
+      tasksHint:"أكمل المهام لتحصل على LOE إضافية.", inviteFriends:"دعوة الأصدقاء", copyInvite:"نسخ رابط الدعوة",
+      withdraw:"السحب", requestWithdraw:"طلب سحب", home:"الرئيسية", invite:"دعوة",
+      joinChannel:"انضم إلى قناة LOE", followX:"تابعنا على إكس", subscribeYoutube:"اشترك في قناة يوتيوب",
+      start:"ابدأ", claim:"استلام", done:"تم", inviteHint:"تحصل على", perFriend:"LOE عن كل صديق ينضم عبر رابطك.",
+      copied:"تم نسخ رابط الدعوة", minimum:"الحد الأدنى للسحب:", withdrawDisabled:"سيتم تفعيل طلبات السحب في تحديث لاحق.",
+      pressMine:"اضغط للتعدين", taskReward:"LOE", accountGuest:"زائر"
+    }
+  };
+  let language = localStorage.getItem("loe_language") || "en";
+  const tr = key => (translations[language] && translations[language][key]) || translations.en[key] || key;
+  function applyLanguage() {
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    document.body.style.fontFamily = language === "ar" ? '"Tajawal", system-ui, sans-serif' : 'system-ui, "Tajawal", sans-serif';
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.dataset.i18n;
+      if (translations[language][key]) el.textContent = translations[language][key];
+    });
+    $("languageSelect").value = language;
+    document.querySelector('nav.tabbar').setAttribute("aria-label", language === "ar" ? "التنقل" : "Navigation");
+    $("inviteHint").textContent = language === "ar"
+      ? "تحصل على " + INVITE_REWARD + " LOE عن كل صديق ينضم عبر رابطك."
+      : "Earn " + INVITE_REWARD + " LOE for every friend who joins using your link.";
+    $("withdrawHint").textContent = (language === "ar" ? "الحد الأدنى للسحب " : "Minimum withdrawal: ") + fmt(MIN_WITHDRAW) + " LOE.";
+    noteEl.textContent = language === "ar"
+      ? "كل " + durationText(COOLDOWN) + " تحصل على " + REWARD + " LOE"
+      : "Earn " + REWARD + " LOE every " + durationText(COOLDOWN);
+    renderTasks();
+    render();
+  }
+  $("languageSelect").addEventListener("change", function () {
+    language = this.value;
+    localStorage.setItem("loe_language", language);
+    applyLanguage();
+  });
+
+  // TON Connect: set this to the public URL of your tonconnect-manifest.json before deployment.
+  const TONCONNECT_MANIFEST_URL = "https://YOUR_DOMAIN/tonconnect-manifest.json";
+  let tonConnectUI = null;
+  let walletConnected = false;
+  function setWalletState(wallet) {
+    walletConnected = !!(wallet && wallet.account && wallet.account.address);
+    const address = walletConnected ? wallet.account.address : "";
+    const shortAddress = address ? address.slice(0, 6) + "…" + address.slice(-5) : "";
+    const tgName = tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") || tgUser.username : "";
+    $("profileName").textContent = walletConnected ? (tgName || shortAddress) : (tgName || tr("accountGuest"));
+    $("profileAvatar").textContent = ($("profileName").textContent || "U").trim().charAt(0).toUpperCase();
+    $("walletGate").hidden = walletConnected;
+    $("walletStatus").textContent = walletConnected ? tr("connected") : tr("walletRequired");
+    $("connectWalletBtn").hidden = walletConnected;
+    if (walletConnected) render();
+  }
+  try {
+    if (window.TON_CONNECT_UI && window.TON_CONNECT_UI.TonConnectUI) {
+      tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: TONCONNECT_MANIFEST_URL });
+      tonConnectUI.onStatusChange(setWalletState);
+      $("connectWalletBtn").addEventListener("click", async function () {
+        if (TONCONNECT_MANIFEST_URL.includes("YOUR_DOMAIN")) {
+          $("walletStatus").textContent = language === "ar"
+            ? "قبل النشر، ضع رابط ملف tonconnect-manifest.json العام داخل الكود."
+            : "Before publishing, set the public tonconnect-manifest.json URL in the code.";
+          return;
+        }
+        try { await tonConnectUI.openModal(); }
+        catch (e) { $("walletStatus").textContent = tr("connectError"); }
+      });
+    } else {
+      $("connectWalletBtn").addEventListener("click", function () {
+        $("walletStatus").textContent = language === "ar"
+          ? "تعذر تحميل TON Connect. تحقق من اتصال الإنترنت."
+          : "TON Connect could not load. Check your internet connection.";
+      });
+    }
+  } catch (e) {
+    $("walletStatus").textContent = language === "ar" ? "تعذر تهيئة ربط المحفظة." : "Could not initialize wallet connection.";
+  }
+
+  // ================= الإعدادات: غيّر هذه القيم بسهولة =================
+  const REWARD = 5;             // مكافأة الضغط على الدائرة (بسيطة)
+  const COOLDOWN = 8 * 3600;    // الانتظار بالثواني = 8 ساعات (للتجربة السريعة اجعله 10 مؤقتاً)
+  const TASK_WAIT = 5;          // ثواني الانتظار قبل أن يظهر زر "استلام" في المهمة
+  const INVITE_REWARD = 25;     // مكافأة كل صديق (تُفعَّل مع السيرفر لاحقاً)
+  const MIN_WITHDRAW = 1000;    // الحد الأدنى للسحب
+  const INVITE_BASE = "https://t.me/YOUR_BOT_NAME/app?startapp="; // غيّره لرابط بوتك لاحقاً
+  const STORAGE_KEY = "loe_state_v1";
+
+  // قائمة المهام: أضف مهمة جديدة بإضافة سطر هنا
+  const TASKS = [
+    { id: "channel", title: "Join the LOE channel",  reward: 50, url: "https://t.me/YOUR_CHANNEL" },
+    { id: "x",       title: "Follow us on X",     reward: 30, url: "https://x.com/YOUR_ACCOUNT" },
+    { id: "youtube", title: "Subscribe to YouTube", reward: 40, url: "https://youtube.com/@YOUR_CHANNEL" }
+  ];
+  // =====================================================================
+
+  // ---- تلجرام (إن كانت الصفحة مفتوحة داخله) ----
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+  const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  const userId = tgUser ? tgUser.id : "test";
+  if (tgUser) {
+    const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") || tgUser.username || "Guest";
+    $("profileName").textContent = displayName;
+    $("profileAvatar").textContent = displayName.charAt(0).toUpperCase();
+  }
+
+  // ---- الحالة ----
+  function loadState() {
+    var s = { balance: 0, lastMine: 0, tasks: {} };
+    try {
+      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (saved && typeof saved.balance === "number") {
+        s.balance = saved.balance;
+        s.lastMine = saved.lastMine || 0;
+        s.tasks = saved.tasks || {};
+      }
+    } catch (e) {}
+    return s;
+  }
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  const state = loadState();
+
+  // ---- عناصر ----
+  const $ = function (id) { return document.getElementById(id); };
+  const balanceEl = $("balance"), coinEl = $("coin"), statusEl = $("status"), ringEl = $("ring");
+  const stageEl = $("stage"), noteEl = $("note"), toastEl = $("toast");
+
+  function fmt(n) { return n.toLocaleString("en-US"); }
+
+  var toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2200);
+  }
+  function haptic(kind) { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(kind || "light"); }
+
+  // ---- نص المدة بالعربية ----
+  function durationText(sec) {
+    var n, one, two, few, many;
+    if (sec >= 3600) { n = sec / 3600; one = "ساعة"; two = "ساعتان"; few = "ساعات"; many = "ساعة"; }
+    else if (sec >= 60) { n = sec / 60; one = "دقيقة"; two = "دقيقتان"; few = "دقائق"; many = "دقيقة"; }
+    else { n = sec; one = "ثانية"; two = "ثانيتان"; few = "ثوانٍ"; many = "ثانية"; }
+    if (n === 1) return one;
+    if (n === 2) return two;
+    return n + " " + (n <= 10 ? few : many);
+  }
+  function formatTime(total) {
+    var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    var p = function (x) { return String(x).padStart(2, "0"); };
+    return p(h) + ":" + p(m) + ":" + p(s);
+  }
+
+  // ================= الرئيسية =================
+  const CIRCUMFERENCE = 2 * Math.PI * 112;
+  ringEl.style.strokeDasharray = CIRCUMFERENCE;
+  noteEl.textContent = "Earn " + REWARD + " LOE every " + durationText(COOLDOWN);
+
+  function showGain() {
+    var el = document.createElement("span");
+    el.className = "gain";
+    el.textContent = "+" + REWARD;
+    el.addEventListener("animationend", function () { el.remove(); });
+    stageEl.appendChild(el);
+  }
+  function mine() {
+    if (!walletConnected) { $("walletGate").hidden = false; return; }
+    if ((Date.now() - state.lastMine) / 1000 < COOLDOWN) return;
+    state.balance += REWARD;
+    state.lastMine = Date.now();
+    saveState();
+    showGain();
+    haptic("light");
+    render();
+  }
+  coinEl.addEventListener("click", mine);
+
+  // ================= المهام =================
+  function openLink(url) {
+    if (tg && /^https:\/\/t\.me\//.test(url)) tg.openTelegramLink(url);
+    else if (tg) tg.openLink(url);
+    else window.open(url, "_blank", "noopener");
+  }
+
+  const taskRefs = {};
+  const listEl = $("taskList");
+  TASKS.forEach(function (task) {
+    var li = document.createElement("li"); li.className = "row";
+    var text = document.createElement("div"); text.className = "row-text";
+    var title = document.createElement("p"); title.className = "row-title"; title.textContent = language === "ar" ? ({channel:"انضم إلى قناة LOE",x:"تابعنا على إكس",youtube:"اشترك في قناة يوتيوب"}[task.id]) : task.title;
+    var reward = document.createElement("p"); reward.className = "row-reward"; reward.textContent = "+" + task.reward + " LOE";
+    text.appendChild(title); text.appendChild(reward);
+    var btn = document.createElement("button"); btn.type = "button"; btn.className = "btn";
+    var done = document.createElement("span"); done.className = "done"; done.textContent = tr("done"); done.hidden = true;
+    btn.addEventListener("click", function () { onTask(task); });
+    li.appendChild(text); li.appendChild(btn); li.appendChild(done);
+    listEl.appendChild(li);
+    taskRefs[task.id] = { btn: btn, done: done };
+  });
+
+  function onTask(task) {
+    if (!walletConnected) { $("walletGate").hidden = false; return; }
+    var st = state.tasks[task.id];
+    if (st && st.done) return;
+    if (!st) {
+      state.tasks[task.id] = { startedAt: Date.now(), done: false };
+      saveState();
+      openLink(task.url);
+    } else if ((Date.now() - st.startedAt) / 1000 >= TASK_WAIT) {
+      st.done = true;
+      state.balance += task.reward;
+      saveState();
+      toast("+" + task.reward + " LOE");
+      haptic("medium");
+    }
+    render();
+  }
+
+  function renderTasks() {
+    TASKS.forEach(function (task) {
+      var ref = taskRefs[task.id], st = state.tasks[task.id];
+      if (st && st.done) { ref.btn.hidden = true; ref.done.hidden = false; }
+      else if (st) {
+        ref.btn.hidden = false; ref.done.hidden = true;
+        ref.btn.textContent = tr("claim");
+        ref.btn.disabled = (Date.now() - st.startedAt) / 1000 < TASK_WAIT;
+      } else {
+        ref.btn.hidden = false; ref.done.hidden = true;
+        ref.btn.textContent = tr("start");
+        ref.btn.disabled = false;
+      }
+    });
+  }
+
+  // ================= إضافة (دعوة الأصدقاء) =================
+  const inviteUrl = INVITE_BASE + userId;
+  $("inviteLink").value = inviteUrl;
+  $("inviteHint").textContent = "Earn " + INVITE_REWARD + " LOE for every friend who joins using your link.";
+  $("copyBtn").addEventListener("click", function () {
+    if (!walletConnected) { $("walletGate").hidden = false; return; }
+    var box = $("inviteLink");
+    var ok = function () { toast(tr("copied")); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(inviteUrl).then(ok, function () { box.select(); document.execCommand("copy"); ok(); });
+    } else { box.select(); document.execCommand("copy"); ok(); }
+  });
+
+  // ================= السحب =================
+  $("withdrawHint").textContent = "Minimum withdrawal: " + fmt(MIN_WITHDRAW) + " LOE.";
+  $("withdrawBtn").addEventListener("click", function () {
+    if (!walletConnected) { $("walletGate").hidden = false; return; }
+    toast(tr("withdrawDisabled"));
+  });
+  function renderWithdraw() {
+    var pct = Math.min(100, (state.balance / MIN_WITHDRAW) * 100);
+    $("barFill").style.width = pct + "%";
+    $("bar").setAttribute("aria-valuenow", Math.round(pct));
+    var info = $("withdrawInfo");
+    info.textContent = "";
+    var b = document.createElement("bdi"); b.textContent = fmt(Math.min(state.balance, MIN_WITHDRAW)) + " / " + fmt(MIN_WITHDRAW) + " LOE";
+    info.appendChild(b);
+    $("withdrawBtn").disabled = state.balance < MIN_WITHDRAW;
+  }
+
+  // ================= التبويبات =================
+  const tabs = document.querySelectorAll(".tab");
+  const views = document.querySelectorAll(".view");
+  function showView(name) {
+    views.forEach(function (v) { v.hidden = v.dataset.view !== name; });
+    tabs.forEach(function (t) {
+      var on = t.dataset.view === name;
+      t.classList.toggle("active", on);
+      if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+    });
+  }
+  tabs.forEach(function (t) { t.addEventListener("click", function () {
+    if (!walletConnected) { $("walletGate").hidden = false; return; }
+    showView(t.dataset.view); haptic("light");
+  }); });
+
+  // ================= الرسم الدوري =================
+  function render() {
+    var elapsed = (Date.now() - state.lastMine) / 1000;
+    var left = Math.max(0, Math.ceil(COOLDOWN - elapsed));
+    var progress = Math.min(1, elapsed / COOLDOWN);
+
+    balanceEl.textContent = fmt(state.balance);
+    ringEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+    if (left > 0) { coinEl.disabled = true; statusEl.textContent = formatTime(left); }
+    else { coinEl.disabled = false; statusEl.textContent = tr("tapMine"); }
+
+    renderTasks();
+    renderWithdraw();
+  }
+  setInterval(render, 250);
+  applyLanguage();
+  render();
+</script>
+</body>
+</html>
